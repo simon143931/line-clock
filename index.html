@@ -1,0 +1,186 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>公司LINE打卡系統</title>
+  <script src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
+  <style>
+    body {
+      font-family: Arial, "Microsoft JhengHei", sans-serif;
+      text-align: center;
+      margin: 0;
+      padding: 40px 20px;
+      background: #f5f7fb;
+    }
+
+    .card {
+      max-width: 420px;
+      margin: 40px auto;
+      background: #ffffff;
+      border-radius: 16px;
+      box-shadow: 0 8px 24px rgba(0,0,0,0.08);
+      padding: 30px 20px;
+    }
+
+    h2 {
+      margin-bottom: 10px;
+      color: #222;
+    }
+
+    #status {
+      margin-bottom: 25px;
+      color: #555;
+      font-size: 15px;
+      line-height: 1.6;
+      word-break: break-word;
+    }
+
+    button {
+      width: 80%;
+      max-width: 260px;
+      font-size: 20px;
+      padding: 14px 20px;
+      margin: 12px auto;
+      border: none;
+      border-radius: 10px;
+      cursor: pointer;
+      display: block;
+    }
+
+    .btn-in {
+      background: #06c755;
+      color: white;
+    }
+
+    .btn-out {
+      background: #2d7ff9;
+      color: white;
+    }
+
+    .note {
+      margin-top: 20px;
+      font-size: 13px;
+      color: #888;
+      line-height: 1.6;
+    }
+  </style>
+</head>
+<body>
+
+  <div class="card">
+    <h2>公司 LINE 打卡系統</h2>
+    <div id="status">LIFF 初始化中...</div>
+
+    <button class="btn-in" onclick="clock('上班')">上班打卡</button>
+    <button class="btn-out" onclick="clock('下班')">下班打卡</button>
+
+    <div class="note">
+      打卡時會記錄目前時間與 GPS 定位
+    </div>
+  </div>
+
+  <script>
+    const LIFF_ID = "2009439716-Bo64Wlk9";
+    const API_URL = "https://script.google.com/macros/s/AKfycbwnU_nm-YI4bq6qtAAivEgaS8nh54B-5Hu6eh_HgMyZiSGl9-tNLynCC1wCV4QXVA1y/exec";
+
+    let userId = "";
+    let name = "";
+
+    async function init() {
+      try {
+        await liff.init({ liffId: LIFF_ID });
+
+        if (!liff.isLoggedIn()) {
+          liff.login();
+          return;
+        }
+
+        const profile = await liff.getProfile();
+        userId = profile.userId;
+        name = profile.displayName;
+
+        document.getElementById("status").innerHTML =
+          `登入成功<br>姓名：${name}`;
+      } catch (err) {
+        console.error("LIFF 初始化失敗：", err);
+        document.getElementById("status").innerText =
+          "LIFF 初始化失敗：" + err.message;
+      }
+    }
+
+    async function clock(type) {
+      if (!userId || !name) {
+        alert("使用者資料尚未載入完成，請稍後再試");
+        return;
+      }
+
+      if (!navigator.geolocation) {
+        alert("此裝置不支援定位功能");
+        return;
+      }
+
+      document.getElementById("status").innerText = "正在取得 GPS 定位...";
+
+      navigator.geolocation.getCurrentPosition(
+        async function(pos) {
+          try {
+            document.getElementById("status").innerText = "正在送出打卡資料...";
+
+            const response = await fetch(API_URL, {
+              method: "POST",
+              headers: {
+                "Content-Type": "application/json"
+              },
+              body: JSON.stringify({
+                type: type,
+                userId: userId,
+                name: name,
+                lat: pos.coords.latitude,
+                lng: pos.coords.longitude
+              })
+            });
+
+            const result = await response.json();
+            console.log("後端回傳：", result);
+
+            if (result.status !== "ok") {
+              throw new Error(result.message || "後端寫入失敗");
+            }
+
+            document.getElementById("status").innerHTML =
+              `${type}打卡成功<br>姓名：${name}`;
+
+            alert(type + "打卡成功");
+
+          } catch (err) {
+            console.error("打卡失敗：", err);
+            document.getElementById("status").innerText =
+              "打卡失敗：" + err.message;
+            alert("打卡失敗：" + err.message);
+          }
+        },
+        function(error) {
+          console.error("GPS 失敗：", error);
+
+          let msg = "GPS定位失敗，請開啟定位權限";
+          if (error.code === 1) msg = "你已拒絕定位權限，請允許定位後再試";
+          if (error.code === 2) msg = "目前無法取得定位資訊";
+          if (error.code === 3) msg = "定位逾時，請到空曠處再試";
+
+          document.getElementById("status").innerText = msg;
+          alert(msg);
+        },
+        {
+          enableHighAccuracy: true,
+          timeout: 15000,
+          maximumAge: 0
+        }
+      );
+    }
+
+    init();
+  </script>
+
+</body>
+</html>
