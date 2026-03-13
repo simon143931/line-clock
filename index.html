@@ -91,6 +91,13 @@
     const LIFF_ID = "2009439716-Bo64Wlk9";
     const API_URL = "https://script.google.com/macros/s/AKfycbwnU_nm-YI4bq6qtAAivEgaS8nh54B-5Hu6eh_HgMyZiSGl9-tNLynCC1wCV4QXVA1y/exec";
 
+    // 公司位置
+    const COMPANY_LAT = 24.146203;
+    const COMPANY_LNG = 120.618550;
+
+    // 允許打卡距離（公尺）
+    const ALLOW_DISTANCE = 200;
+
     let userId = "";
     let name = "";
     let isSubmitting = false;
@@ -98,6 +105,21 @@
     function setButtonsDisabled(disabled) {
       document.getElementById("btnIn").disabled = disabled;
       document.getElementById("btnOut").disabled = disabled;
+    }
+
+    function getDistance(lat1, lng1, lat2, lng2) {
+      const R = 6371000;
+      const dLat = (lat2 - lat1) * Math.PI / 180;
+      const dLng = (lng2 - lng1) * Math.PI / 180;
+
+      const a =
+        Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+        Math.cos(lat1 * Math.PI / 180) *
+        Math.cos(lat2 * Math.PI / 180) *
+        Math.sin(dLng / 2) * Math.sin(dLng / 2);
+
+      const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+      return R * c;
     }
 
     async function init() {
@@ -145,6 +167,24 @@
       navigator.geolocation.getCurrentPosition(
         async function(pos) {
           try {
+            document.getElementById("status").innerText = "正在檢查打卡位置...";
+
+            const distance = getDistance(
+              pos.coords.latitude,
+              pos.coords.longitude,
+              COMPANY_LAT,
+              COMPANY_LNG
+            );
+
+            console.log("距離公司(公尺)：", distance);
+
+            if (distance > ALLOW_DISTANCE) {
+              document.getElementById("status").innerText =
+                `你不在公司打卡範圍內，目前距離約 ${Math.round(distance)} 公尺`;
+              alert(`你不在公司打卡範圍內，目前距離約 ${Math.round(distance)} 公尺`);
+              return;
+            }
+
             document.getElementById("status").innerText = "正在送出打卡資料...";
 
             const response = await fetch(API_URL, {
@@ -173,7 +213,7 @@
             }
 
             document.getElementById("status").innerHTML =
-              `${type}打卡成功<br>姓名：${name}`;
+              `${type}打卡成功<br>姓名：${name}<br>距離公司：約 ${Math.round(distance)} 公尺`;
 
             alert(`${type}打卡成功`);
           } catch (err) {
